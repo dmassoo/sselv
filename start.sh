@@ -3,7 +3,7 @@ set -e
 
 cd "$(dirname "$0")"
 
-# 1. Проверка .env и жесткая очистка от Windows-переносов (\r)
+# 1. Чтение и очистка .env
 if [ -f .env ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         clean_line=$(echo "$line" | tr -d '\r' | xargs)
@@ -12,23 +12,20 @@ if [ -f .env ]; then
         fi
     done < .env
 else
-    echo "Ошибка: Файл .env не найден! Создайте его."
+    echo "Ошибка: Файл .env не найден!"
     exit 1
 fi
 
 if [ -z "$SERVER_IP" ] || [ -z "$DEST_DOMAIN" ]; then
-    echo "Ошибка: В .env обязаны быть заполнены переменные SERVER_IP и DEST_DOMAIN."
+    echo "Ошибка: В .env обязаны быть заполнены переменные SERVER_IP and DEST_DOMAIN."
     exit 1
 fi
 
 echo "1. Проверка и генерация криптографических параметров..."
-
-# Используем официальную утилиту ядра для генерации валидной пары Curve25519 ключей
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
     /usr/local/bin/xray x25519 > /tmp/xray_keys.txt
     
-    # Python адаптирован под абсолютно любой формат вывода ядра Xray (включая Password (PublicKey):)
     KEYS=$(python3 -c "
 import os
 if os.path.exists('/tmp/xray_keys.txt'):
@@ -48,7 +45,7 @@ if os.path.exists('/tmp/xray_keys.txt'):
     PUBLIC_KEY=$(echo "$KEYS" | awk '{print $2}')
     
     if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-        echo "Критическая ошибка: Не удалось распарсить новые ключи!"
+        echo "Критическая ошибка: Не удалось распарсить ключи!"
         exit 1
     fi
     
@@ -66,7 +63,6 @@ if [ -z "$GRPC_SERVICE_NAME" ]; then
     echo "GRPC_SERVICE_NAME=${GRPC_SERVICE_NAME}" >> .env
 fi
 
-# Генерация UUID для 5 пользователей официальной командой xray uuid
 for i in {1..5}; do
     var_name="CLIENT_UUID_$i"
     if [ -z "${!var_name}" ]; then
@@ -78,14 +74,14 @@ for i in {1..5}; do
     fi
 done
 
-# Принудительно экспортируем абсолютно все переменные для утилиты envsubst
 export SERVER_IP DEST_DOMAIN PRIVATE_KEY PUBLIC_KEY SHORT_ID GRPC_SERVICE_NAME
 export CLIENT_UUID_1 CLIENT_UUID_2 CLIENT_UUID_3 CLIENT_UUID_4 CLIENT_UUID_5
 
 echo "2. Сборка конфигурации..."
 envsubst < config.template.json > /usr/local/etc/xray/config.json
 
-# Выставляем права по стандарту безопасности XTLS: root владеет, группа xray может читать
+# ЗДЕСЬ ВЫСТАВЛЯЮТСЯ ЧИСТЫЕ ПРАВА ПО ОФИЦИАЛЬНОЙ СПЕЦИФИКАЦИИ XTLS
+# Владелец root (чтобы никто не подменил), группа xray может читать.
 chown root:xray /usr/local/etc/xray/config.json
 chmod 0640 /usr/local/etc/xray/config.json
 
@@ -96,11 +92,9 @@ echo "--------------------------------------------------------"
 echo " СЕРВЕР НА XRAY-CORE УСПЕШНО ЗАПУЩЕН!"
 echo "--------------------------------------------------------"
 
-# 4. Вывод готовых клиентских ссылок VLESS + gRPC + Reality
 for i in {1..5}; do
     uuid_var="CLIENT_UUID_$i"
     CLIENT_URL="vless://${!uuid_var}@${SERVER_IP}:443?security=reality&encryption=none&pbk=${PUBLIC_KEY}&headerType=none&fp=chrome&type=grpc&sni=${DEST_DOMAIN}&sid=${SHORT_ID}&serviceName=${GRPC_SERVICE_NAME}#User-$i"
-    
     echo -e "\n=== Ссылка для Пользователя $i ==="
     echo -e "\e[32m${CLIENT_URL}\e[0m"
     echo "--------------------------------------------------------"
