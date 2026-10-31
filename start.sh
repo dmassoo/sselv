@@ -21,9 +21,20 @@ echo "1. Проверка и генерация криптографически
 # Используем официальную утилиту ядра для генерации валидной пары Curve25519 ключей
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
-    KEYS=$(/usr/local/bin/xray x25519)
-    PRIVATE_KEY=$(echo "$KEYS" | grep "Private key:" | awk '{print $3}')
-    PUBLIC_KEY=$(echo "$KEYS" | grep "Public key:" | awk '{print $3}')
+    
+    # Запускаем генерацию и сохраняем сырой вывод
+    KEYS_OUTPUT=$(/usr/local/bin/xray x25519)
+    
+    # Парсим ключи (учитываем любые пробелы и регистр двоеточий)
+    PRIVATE_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Private.key" | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    PUBLIC_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Public.key" | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    
+    # Критическая проверка: если ключи все еще пустые — останавливаем скрипт и пишем ошибку
+    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
+        echo "Критическая ошибка: Не удалось сгенерировать ключи через /usr/local/bin/xray x25519!"
+        echo "Вывод команды был: $KEYS_OUTPUT"
+        exit 1
+    fi
     
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
