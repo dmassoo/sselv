@@ -12,7 +12,7 @@ if [ -f .env ]; then
         fi
     done < .env
 else
-    echo "Ошибка: Файл .env не найден!"
+    echo "Ошибка: Файл .env не найден! Создайте его."
     exit 1
 fi
 
@@ -23,10 +23,12 @@ fi
 
 echo "1. Проверка и генерация криптографических параметров..."
 
+# Используем официальную утилиту ядра для генерации валидной пары Curve25519 ключей
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
     /usr/local/bin/xray x25519 > /tmp/xray_keys.txt
     
+    # Python адаптирован под абсолютно любой формат вывода ядра Xray (включая Password (PublicKey):)
     KEYS=$(python3 -c "
 import os
 if os.path.exists('/tmp/xray_keys.txt'):
@@ -64,6 +66,7 @@ if [ -z "$GRPC_SERVICE_NAME" ]; then
     echo "GRPC_SERVICE_NAME=${GRPC_SERVICE_NAME}" >> .env
 fi
 
+# Генерация UUID для 5 пользователей официальной командой xray uuid
 for i in {1..5}; do
     var_name="CLIENT_UUID_$i"
     if [ -z "${!var_name}" ]; then
@@ -75,16 +78,16 @@ for i in {1..5}; do
     fi
 done
 
+# Принудительно экспортируем абсолютно все переменные для утилиты envsubst
 export SERVER_IP DEST_DOMAIN PRIVATE_KEY PUBLIC_KEY SHORT_ID GRPC_SERVICE_NAME
 export CLIENT_UUID_1 CLIENT_UUID_2 CLIENT_UUID_3 CLIENT_UUID_4 CLIENT_UUID_5
 
 echo "2. Сборка конфигурации..."
 envsubst < config.template.json > /usr/local/etc/xray/config.json
 
-# Выставляем права для вашего текущего пользователя
-REAL_USER=${SUDO_USER:-$(whoami)}
-chown $REAL_USER:$REAL_USER /usr/local/etc/xray/config.json
-chmod 0644 /usr/local/etc/xray/config.json
+# Выставляем права по стандарту безопасности XTLS: root владеет, группа xray может читать
+chown root:xray /usr/local/etc/xray/config.json
+chmod 0640 /usr/local/etc/xray/config.json
 
 echo "3. Перезапуск официальной службы xray..."
 systemctl restart xray
@@ -93,6 +96,7 @@ echo "--------------------------------------------------------"
 echo " СЕРВЕР НА XRAY-CORE УСПЕШНО ЗАПУЩЕН!"
 echo "--------------------------------------------------------"
 
+# 4. Вывод готовых клиентских ссылок VLESS + gRPC + Reality
 for i in {1..5}; do
     uuid_var="CLIENT_UUID_$i"
     CLIENT_URL="vless://${!uuid_var}@${SERVER_IP}:443?security=reality&encryption=none&pbk=${PUBLIC_KEY}&headerType=none&fp=chrome&type=grpc&sni=${DEST_DOMAIN}&sid=${SHORT_ID}&serviceName=${GRPC_SERVICE_NAME}#User-$i"
