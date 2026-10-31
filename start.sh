@@ -24,12 +24,23 @@ if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     
     KEYS_OUTPUT=$(/usr/local/bin/xray x25519)
     
-    # Новый универсальный парсер: очищает строку от слов PrivateKey/PublicKey и пробелов
-    PRIVATE_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Private" | sed -e 's/PrivateKey://g' -e 's/Private key://g' | tr -d '[:space:]:')
-    PUBLIC_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Public" | sed -e 's/PublicKey://g' -e 's/Public key://g' | tr -d '[:space:]:')
+    # Python надежно вытаскивает ключи, убирая любые двоеточия, пробелы и скрытые символы \r \n
+    KEYS=$(python3 -c "
+output = \"\"\"$KEYS_OUTPUT\"\"\"
+priv, pub = '', ''
+for line in output.split('\n'):
+    if 'Private' in line:
+        priv = line.split('Key:')[-1].split('key:')[-1].strip()
+    if 'Public' in line:
+        pub = line.split('Key:')[-1].split('key:')[-1].strip()
+print(f'{priv} {pub}')
+")
+
+    PRIVATE_KEY=$(echo "$KEYS" | awk '{print $1}')
+    PUBLIC_KEY=$(echo "$KEYS" | awk '{print $2}')
     
     if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-        echo "Критическая ошибка: Не удалось распарсить ключи!"
+        echo "Критическая ошибка: Не удалось распарсить ключи через Python!"
         echo "Вывод команды был: $KEYS_OUTPUT"
         exit 1
     fi
@@ -37,6 +48,7 @@ if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
+
 
 
 if [ -z "$SHORT_ID" ]; then
