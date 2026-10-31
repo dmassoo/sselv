@@ -22,34 +22,35 @@ echo "1. Проверка и генерация криптографически
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
     
-    KEYS_OUTPUT=$(/usr/local/bin/xray x25519)
+    # Сохраняем вывод во временный файл, чтобы избежать искажения символов в Bash
+    /usr/local/bin/xray x25519 > /tmp/xray_keys.txt
     
-    # Python надежно вытаскивает ключи, убирая любые двоеточия, пробелы и скрытые символы \r \n
+    # Python читает файл напрямую с диска по байтам и чисто забирает ключи
     KEYS=$(python3 -c "
-output = \"\"\"$KEYS_OUTPUT\"\"\"
-priv, pub = '', ''
-for line in output.split('\n'):
-    if 'Private' in line:
-        priv = line.split('Key:')[-1].split('key:')[-1].strip()
-    if 'Public' in line:
-        pub = line.split('Key:')[-1].split('key:')[-1].strip()
-print(f'{priv} {pub}')
+import os
+if os.path.exists('/tmp/xray_keys.txt'):
+    with open('/tmp/xray_keys.txt', 'r', encoding='utf-8') as f:
+        priv, pub = '', ''
+        for line in f:
+            if 'Private' in line:
+                priv = line.split('Key:')[-1].split('key:')[-1].strip()
+            if 'Public' in line:
+                pub = line.split('Key:')[-1].split('key:')[-1].strip()
+        print(f'{priv} {pub}')
 ")
+    rm -f /tmp/xray_keys.txt
 
     PRIVATE_KEY=$(echo "$KEYS" | awk '{print $1}')
     PUBLIC_KEY=$(echo "$KEYS" | awk '{print $2}')
     
     if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-        echo "Критическая ошибка: Не удалось распарсить ключи через Python!"
-        echo "Вывод команды был: $KEYS_OUTPUT"
+        echo "Критическая ошибка: Не удалось распарсить ключи с диска!"
         exit 1
     fi
     
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
-
-
 
 if [ -z "$SHORT_ID" ]; then
     SHORT_ID=$(openssl rand -hex 4)
