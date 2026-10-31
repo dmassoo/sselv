@@ -7,36 +7,31 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# Получаем имя вашего SSH-пользователя (например, vpnadmin)
 REAL_USER=${SUDO_USER:-$(whoami)}
+
+# Принудительно делаем исполняемым соседний файл на будущее
 chmod +x ./start.sh
 
-echo "1. Установка базовых утилит..."
-apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip software-properties-common
+echo "1. Установка базовых утилит и Snapd..."
+apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip snapd
 
-echo "2. Добавление официального репозитория Xray..."
-# Добавляем официальный PPA репозиторий XTLS, который поддерживается серверами Ubuntu
-add-apt-repository -y ppa:izgharii/xray || true
-apt-get update
+echo "2. Установка ядра Xray-core из Snap Store..."
+# Snap использует свои независимые CDN каналы в Европе, которые скачают рабочий бинарник без ошибок
+snap install xray-core
 
-echo "3. Установка ядра xray..."
-# Устанавливаем официальный пакет xray-core
-apt-get install -y xray || apt-get install -y xray-core
-
-# Проверяем, куда встал бинарник, и делаем правильную ссылку для start.sh
+# Создаем системные директории и делаем симлинк на snap-версию бинарника
 mkdir -p /usr/local/bin /usr/local/etc/xray
-if [ -f /usr/bin/xray ]; then
-    ln -sf /usr/bin/xray /usr/local/bin/xray
-elif [ -f /usr/bin/xray-core ]; then
-    ln -sf /usr/bin/xray-core /usr/local/bin/xray
-fi
+ln -sf /snap/bin/xray-core /usr/local/bin/xray
 
-# Отдаем права вашему пользователю
+# Отдаем права на папку с конфигурацией вашему пользователю
 chown -R $REAL_USER:$REAL_USER /usr/local/etc/xray
 
-echo "4. Настройка сетевых привилегий для порта 443..."
-setcap 'cap_net_bind_service=ep' /usr/local/bin/xray
+echo "3. Настройка сетевых привилегий для порта 443..."
+# Разрешаем snap-бинарнику слушать порт 443 под обычным пользователем
+setcap 'cap_net_bind_service=ep' /snap/bin/xray-core || true
 
-echo "5. Регистрация службы Xray в systemd под пользователем $REAL_USER..."
+echo "4. Регистрация службы Xray в systemd под пользователем $REAL_USER..."
 cat << EOF > /etc/systemd/system/xray.service
 [Unit]
 Description=Xray Service
@@ -58,14 +53,15 @@ LimitNOFILE=1000000
 WantedBy=multi-user.target
 EOF
 
-# Останавливаем дефолтный v2ray (если он запустился) и включаем xray
+# Удаляем или отключаем старый v2ray, если он остался от прошлых тестов
 systemctl stop v2ray &>/dev/null || true
 systemctl disable v2ray &>/dev/null || true
 
+# Перезагружаем демона systemd и активируем автозапуск при ребуте
 systemctl daemon-reload
 systemctl enable xray
 
 echo "--------------------------------------------------------"
-echo " Установка успешно завершена!"
-echo " Теперь запускайте настройку конфигурации: sudo ./start.sh"
+echo " Установка успешно завершена под пользователем: $REAL_USER"
+echo " Запустите финальную настройку: sudo ./start.sh"
 echo "--------------------------------------------------------"
