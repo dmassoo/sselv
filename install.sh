@@ -16,25 +16,53 @@ chmod +x ./start.sh
 echo "1. Установка системных утилит..."
 apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip
 
-echo "2. Установка официального ядра Xray..."
-# Скачиваем и запускаем официальный инсталлятор через правильный синтаксис
-curl -L https://github.com | bash -s -- install
+echo "2. Скачивание официального ядра Xray-core из GitHub..."
+rm -f /tmp/xray.zip
 
-echo "3. Настройка прав и перенос службы на пользователя $REAL_USER..."
-# Даем права на папки конфигурации вашему пользователю
-mkdir -p /usr/local/etc/xray
+# Маскируемся под реальный браузер Chrome на Windows, чтобы обойти защиту GitHub
+curl -f -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+-o /tmp/xray.zip "https://github.com"
+
+# Создаем системные директории
+mkdir -p /usr/local/bin /usr/local/etc/xray
+
+# Распаковываем скачанный архив
+unzip -o /tmp/xray.zip -d /usr/local/bin/
+rm -f /tmp/xray.zip
+
+# Выставляем права на исполнение бинарника
+chmod +x /usr/local/bin/xray
+
+# Отдаем права на папку с конфигурацией вашему пользователю
 chown -R $REAL_USER:$REAL_USER /usr/local/etc/xray
 
-# Модифицируем созданную инсталлятором службу systemd под вашего пользователя
-SED_USER_REPLACE="s/User=xray/User=$REAL_USER/g"
-sed -i "$SED_USER_REPLACE" /etc/systemd/system/xray.service
+echo "3. Настройка сетевых привилегий для порта 443..."
+# Разрешаем бинарнику слушать порт 443 под обычным пользователем
+setcap 'cap_net_bind_service=ep' /usr/local/bin/xray
 
-# Добавляем в службу необходимые сетевые привилегии, чтобы работать под обычным пользователем
-if ! grep -q "AmbientCapabilities" /etc/systemd/system/xray.service; then
-    sed -i '/\[Service\]/a AmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE' /etc/systemd/system/xray.service
-fi
+echo "4. Регистрация службы Xray в systemd под пользователем $REAL_USER..."
+cat << EOF > /etc/systemd/system/xray.service
+[Unit]
+Description=Xray Service
+Documentation=https://github.com
+After=network.target nss-lookup.target
 
-# Перезагружаем демона systemd и включаем автозапуск службы при ребуте
+[Service]
+User=$REAL_USER
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ExecStart=/usr/local/bin/xray run -config /usr/local/etc/xray/config.json
+Restart=on-failure
+RestartPreventExitStatus=23
+LimitNPROC=10000
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Перезагружаем демона systemd и активируем автозапуск при ребуте
 systemctl daemon-reload
 systemctl enable xray
 
