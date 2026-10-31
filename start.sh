@@ -21,10 +21,8 @@ echo "1. Проверка и генерация криптографически
 # Используем официальную утилиту ядра для генерации валидной пары Curve25519 ключей
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
-    
     /usr/local/bin/xray x25519 > /tmp/xray_keys.txt
     
-    # Python адаптирован под новый формат вывода ядра Xray
     KEYS=$(python3 -c "
 import os
 if os.path.exists('/tmp/xray_keys.txt'):
@@ -74,12 +72,14 @@ for i in {1..5}; do
     fi
 done
 
+# Принудительно экспортируем абсолютно все переменные для подстановки в JSON
 export PRIVATE_KEY PUBLIC_KEY SHORT_ID DEST_DOMAIN GRPC_SERVICE_NAME
+export CLIENT_UUID_1 CLIENT_UUID_2 CLIENT_UUID_3 CLIENT_UUID_4 CLIENT_UUID_5
 
-echo "2. Сборка конфигурации и применение маски прав 0640..."
+echo "2. Сборка конфигурации..."
 envsubst < config.template.json > /usr/local/etc/xray/config.json
 
-# Выставляем права строго по официальной таблице XTLS: root:xray
+# Выставляем права строго по официальной таблице XTLS
 chown root:xray /usr/local/etc/xray/config.json
 chmod 0640 /usr/local/etc/xray/config.json
 
