@@ -50,14 +50,15 @@ fi
 for i in {1..5}; do
     var_name="CLIENT_UUID_$i"
     if [ -z "${!var_name}" ]; then
-        NEW_UUID=$(xray uuid)
+        # Используем стандартный генератор UUID из Linux
+        NEW_UUID=$(cat /proc/sys/kernel/random/uuid)
         export "CLIENT_UUID_$i"="$NEW_UUID"
         echo "CLIENT_UUID_$i=${NEW_UUID}" >> .env
     else
-        # Перестраховка: экспортируем уже существующий UUID из .env
         export "CLIENT_UUID_$i"="${!var_name}"
     fi
 done
+
 
 # Принудительно экспортируем технические переменные для утилиты envsubst
 export PRIVATE_KEY PUBLIC_KEY SHORT_ID DEST_DOMAIN GRPC_SERVICE_NAME
