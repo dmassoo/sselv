@@ -10,7 +10,7 @@ echo "1. Установка системных утилит..."
 apt-get update && apt-get install -y gettext-base curl qrencode openssl git
 
 echo "2. Установка официального ядра Xray и службы systemd..."
-bash -c "$(curl -L https://github.com)" @ install
+sed -i 's|bash -c "$(curl -L https://github.com)" @ install|curl -L https://github.com \| bash -s -- install|' install.sh
 
 chmod +x ./start.sh
 
