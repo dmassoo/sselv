@@ -24,18 +24,18 @@ if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     
     /usr/local/bin/xray x25519 > /tmp/xray_keys.txt
     
-    # Python жестко проверяет начало строки, отсекая любые предупреждения про пароли
+    # Python адаптирован под новый формат вывода ядра Xray
     KEYS=$(python3 -c "
 import os
 if os.path.exists('/tmp/xray_keys.txt'):
     with open('/tmp/xray_keys.txt', 'r', encoding='utf-8') as f:
         priv, pub = '', ''
         for line in f:
-            clean = line.strip().replace(' ', '')
-            if clean.startswith('PrivateKey:'):
-                priv = clean.split('PrivateKey:')[-1]
-            elif clean.startswith('PublicKey:'):
-                pub = clean.split('PublicKey:')[-1]
+            clean = line.strip()
+            if 'PrivateKey:' in clean:
+                priv = clean.split('PrivateKey:')[-1].strip()
+            elif 'Password (PublicKey):' in clean:
+                pub = clean.split('Password (PublicKey):')[-1].strip()
         print(f'{priv} {pub}')
 ")
     rm -f /tmp/xray_keys.txt
@@ -43,14 +43,15 @@ if os.path.exists('/tmp/xray_keys.txt'):
     PRIVATE_KEY=$(echo "$KEYS" | awk '{print $1}')
     PUBLIC_KEY=$(echo "$KEYS" | awk '{print $2}')
     
-    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ] || [ "$PUBLIC_KEY" = "Password" ]; then
-        echo "Критическая ошибка: Парсер выдал некорректный ключ!"
+    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
+        echo "Критическая ошибка: Не удалось распарсить новые ключи!"
         exit 1
     fi
     
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
+
 
     
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
