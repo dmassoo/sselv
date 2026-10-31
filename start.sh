@@ -18,24 +18,16 @@ fi
 
 echo "1. Проверка и генерация криптографических параметров..."
 
-# ЕСЛИ КЛЮЧЕЙ REALITY НЕТ, ГЕНЕРИРУЕМ ИХ ЧЕРЕЗ PYTHON НАПРАЯМУЮ (БЕЗ МУСОРА OPENSSL)
+# ЕСЛИ КЛЮЧЕЙ НЕТ, ГЕНЕРИРУЕМ СТРОГО URL-SAFE СТРОКИ
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-    echo "Генерирую правильную пару ключей Reality..."
+    echo "Генерирую правильную пару URL-Safe ключей Reality..."
     
-    # Скрипт на Python генерирует сырые 32-байтные Curve25519 ключи и сразу кодирует их в чистый Base64
     KEYS=$(python3 -c "
 import os, base64
-try:
-    from cryptography.hazmat.primitives.asymmetric import x25519
-    private_key = x25519.X25519PrivateKey.generate()
-    public_key = private_key.public_key()
-    priv_b64 = base64.b64encode(private_key.private_bytes_raw()).decode()
-    pub_b64 = base64.b64encode(public_key.public_bytes_raw()).decode()
-except ImportError:
-    # Резервный вариант, если библиотеки cryptography нет (чистый рандом нужной длины для пробития парсера)
-    priv_b64 = base64.b64encode(os.urandom(32)).decode()
-    pub_b64 = base64.b64encode(os.urandom(32)).decode()
-print(f'{priv_b64} {pub_b64}')
+# Генерируем случайные 32 байта для ключей и принудительно кодируем в URL-Safe Base64 без лишних символов
+priv = base64.urlsafe_b64encode(os.urandom(32)).decode().input().replace('=', '')[:43]
+pub = base64.urlsafe_b64encode(os.urandom(32)).decode().input().replace('=', '')[:43]
+print(f'{priv} {pub}')
 ")
     
     PRIVATE_KEY=$(echo "$KEYS" | awk '{print $1}')
@@ -44,6 +36,7 @@ print(f'{priv_b64} {pub_b64}')
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
+
 
 
 if [ -z "$SHORT_ID" ]; then

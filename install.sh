@@ -9,48 +9,36 @@ fi
 REAL_USER=${SUDO_USER:-$(whoami)}
 chmod +x ./start.sh
 
-echo "1. Установка системных утилит и пакета v2ray..."
-apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip v2ray
+echo "1. Установка утилит..."
+apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip
 
-echo "2. Настройка путей и папок конфигурации..."
+echo "2. Установка оригинального ядра Xray-core (Фикс лимитов)..."
+# Скачиваем официальный инсталлятор во временный файл, чтобы избежать ошибки "Argument list too long"
+curl -sL https://github.com -o /tmp/xray-install.sh
+bash /tmp/xray-install.sh install
+rm -f /tmp/xray-install.sh
+
+echo "3. Перенос путей под пользователя $REAL_USER..."
 mkdir -p /usr/local/bin /usr/local/etc/xray
+ln -sf /usr/bin/xray /usr/local/bin/xray || true
 
-# Создаем символическую ссылку, чтобы система видела v2ray как xray
-ln -sf /usr/bin/v2ray /usr/local/bin/xray
+# Отдаем права на конфиги вашему пользователю
 chown -R $REAL_USER:$REAL_USER /usr/local/etc/xray
 
-echo "3. Настройка сетевых привилегий для порта 443..."
-setcap 'cap_net_bind_service=ep' /usr/bin/v2ray
+echo "4. Настройка сетевых привилегий для порта 443..."
+setcap 'cap_net_bind_service=ep' /usr/bin/xray || setcap 'cap_net_bind_service=ep' /usr/local/bin/xray
 
-echo "4. Регистрация службы в systemd под пользователем $REAL_USER..."
-cat << EOF > /etc/systemd/system/xray.service
-[Unit]
-Description=Xray/V2Ray Tunnel Service
-After=network.target nss-lookup.target
+echo "5. Обновление службы systemd под пользователя $REAL_USER..."
+sed -i "s/User=xray/User=$REAL_USER/g" /etc/systemd/system/xray.service
 
-[Service]
-User=$REAL_USER
-CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-NoNewPrivileges=true
-ExecStart=/usr/local/bin/xray -config /usr/local/etc/xray/config.json
-Restart=on-failure
-RestartPreventExitStatus=23
-LimitNPROC=10000
-LimitNOFILE=1000000
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Отключаем стандартную службу v2ray, так как мы создали свою кастомную
-systemctl stop v2ray &>/dev/null || true
-systemctl disable v2ray &>/dev/null || true
+# Добавляем привилегии работы с портами без root прав
+if ! grep -q "AmbientCapabilities" /etc/systemd/system/xray.service; then
+    sed -i '/\[Service\]/a AmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE' /etc/systemd/system/xray.service
+fi
 
 systemctl daemon-reload
 systemctl enable xray
 
 echo "--------------------------------------------------------"
-echo " Установка успешно завершена под пользователем: $REAL_USER"
-echo " Запустите финальную настройку: sudo ./start.sh"
+echo " Установка Xray-core завершена успешно!"
 echo "--------------------------------------------------------"
