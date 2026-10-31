@@ -18,7 +18,7 @@ fi
 
 echo "1. Проверка и генерация криптографических параметров..."
 
-# Нам больше не нужны openssl костыли: раз Xray встал, генерируем ключи утилитой самого ядра
+# Используем официальную утилиту ядра для генерации валидной пары Curve25519 ключей
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
     KEYS=$(/usr/local/bin/xray x25519)
@@ -54,10 +54,9 @@ done
 export PRIVATE_KEY PUBLIC_KEY SHORT_ID DEST_DOMAIN GRPC_SERVICE_NAME
 
 echo "2. Сборка конфигурации и применение маски прав 0640..."
-# Генерируем временный файл, чтобы выставить на него системные права XTLS
 envsubst < config.template.json > /usr/local/etc/xray/config.json
 
-# Выставляем права строго по официальной таблице XTLS: root:xray, чтение-запись только им
+# Выставляем права строго по официальной таблице XTLS: root:xray
 chown root:xray /usr/local/etc/xray/config.json
 chmod 0640 /usr/local/etc/xray/config.json
 
@@ -65,7 +64,7 @@ echo "3. Перезапуск официальной службы xray..."
 systemctl restart xray
 
 echo "--------------------------------------------------------"
-echo " СЕРВЕР НА XRAY-CORE СТАБИЛЬНО ЗАПУЩЕН!"
+echo " СЕРВЕР НА XRAY-CORE УСПЕШНО ЗАПУЩЕН!"
 echo "--------------------------------------------------------"
 
 # 4. Вывод готовых клиентских ссылок VLESS + gRPC + Reality
