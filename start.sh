@@ -18,26 +18,16 @@ fi
 
 echo "1. Проверка и генерация криптографических параметров..."
 
-# ЕСЛИ КЛЮЧЕЙ НЕТ, ГЕНЕРИРУЕМ СТРОГО URL-SAFE СТРОКИ
+# Нам больше не нужны openssl костыли: раз Xray встал, генерируем ключи утилитой самого ядра
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-    echo "Генерирую правильную пару URL-Safe ключей Reality..."
-    
-    KEYS=$(python3 -c "
-import os, base64
-# Генерируем случайные 32 байта для ключей и принудительно кодируем в URL-Safe Base64 без лишних символов
-priv = base64.urlsafe_b64encode(os.urandom(32)).decode().input().replace('=', '')[:43]
-pub = base64.urlsafe_b64encode(os.urandom(32)).decode().input().replace('=', '')[:43]
-print(f'{priv} {pub}')
-")
-    
-    PRIVATE_KEY=$(echo "$KEYS" | awk '{print $1}')
-    PUBLIC_KEY=$(echo "$KEYS" | awk '{print $2}')
+    echo "Генерирую официальную пару ключей Reality..."
+    KEYS=$(/usr/local/bin/xray x25519)
+    PRIVATE_KEY=$(echo "$KEYS" | grep "Private key:" | awk '{print $3}')
+    PUBLIC_KEY=$(echo "$KEYS" | grep "Public key:" | awk '{print $3}')
     
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
-
-
 
 if [ -z "$SHORT_ID" ]; then
     SHORT_ID=$(openssl rand -hex 4)
@@ -49,11 +39,11 @@ if [ -z "$GRPC_SERVICE_NAME" ]; then
     echo "GRPC_SERVICE_NAME=${GRPC_SERVICE_NAME}" >> .env
 fi
 
-# 2. Генерация UUID системными средствами Linux
+# Генерация UUID для 5 пользователей официальной командой xray uuid
 for i in {1..5}; do
     var_name="CLIENT_UUID_$i"
     if [ -z "${!var_name}" ]; then
-        NEW_UUID=$(cat /proc/sys/kernel/random/uuid)
+        NEW_UUID=$(/usr/local/bin/xray uuid)
         export "CLIENT_UUID_$i"="$NEW_UUID"
         echo "CLIENT_UUID_$i=${NEW_UUID}" >> .env
     else
@@ -63,18 +53,22 @@ done
 
 export PRIVATE_KEY PUBLIC_KEY SHORT_ID DEST_DOMAIN GRPC_SERVICE_NAME
 
-echo "2. Сборка конфигурации..."
-mkdir -p /usr/local/etc/xray
+echo "2. Сборка конфигурации и применение маски прав 0640..."
+# Генерируем временный файл, чтобы выставить на него системные права XTLS
 envsubst < config.template.json > /usr/local/etc/xray/config.json
 
-echo "3. Перезапуск службы через systemd..."
+# Выставляем права строго по официальной таблице XTLS: root:xray, чтение-запись только им
+chown root:xray /usr/local/etc/xray/config.json
+chmod 0640 /usr/local/etc/xray/config.json
+
+echo "3. Перезапуск официальной службы xray..."
 systemctl restart xray
 
 echo "--------------------------------------------------------"
-echo " СЕРВЕР ЗАПУЩЕН!"
+echo " СЕРВЕР НА XRAY-CORE СТАБИЛЬНО ЗАПУЩЕН!"
 echo "--------------------------------------------------------"
 
-# 3. Вывод готовых клиентских ссылок (без тяжелого qrencode, который может вешать консоль)
+# 4. Вывод готовых клиентских ссылок VLESS + gRPC + Reality
 for i in {1..5}; do
     uuid_var="CLIENT_UUID_$i"
     CLIENT_URL="vless://${!uuid_var}@${SERVER_IP}:443?security=reality&encryption=none&pbk=${PUBLIC_KEY}&headerType=none&fp=chrome&type=grpc&sni=${DEST_DOMAIN}&sid=${SHORT_ID}&serviceName=${GRPC_SERVICE_NAME}#User-$i"
