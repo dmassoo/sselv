@@ -22,6 +22,7 @@
           "realitySettings": {
             "show": false,
             "dest": "${DEST_DOMAIN}:443",
+            "target": "${DEST_DOMAIN}:443",
             "xver": 0,
             "serverNames": [
               "${DEST_DOMAIN}"
