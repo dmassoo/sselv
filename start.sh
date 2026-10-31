@@ -22,16 +22,14 @@ echo "1. Проверка и генерация криптографически
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
     
-    # Запускаем генерацию и сохраняем сырой вывод
     KEYS_OUTPUT=$(/usr/local/bin/xray x25519)
     
-    # Парсим ключи (учитываем любые пробелы и регистр двоеточий)
-    PRIVATE_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Private.key" | awk -F': ' '{print $2}' | tr -d '[:space:]')
-    PUBLIC_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Public.key" | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    # Новый универсальный парсер: очищает строку от слов PrivateKey/PublicKey и пробелов
+    PRIVATE_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Private" | sed -e 's/PrivateKey://g' -e 's/Private key://g' | tr -d '[:space:]:')
+    PUBLIC_KEY=$(echo "$KEYS_OUTPUT" | grep -i "Public" | sed -e 's/PublicKey://g' -e 's/Public key://g' | tr -d '[:space:]:')
     
-    # Критическая проверка: если ключи все еще пустые — останавливаем скрипт и пишем ошибку
     if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-        echo "Критическая ошибка: Не удалось сгенерировать ключи через /usr/local/bin/xray x25519!"
+        echo "Критическая ошибка: Не удалось распарсить ключи!"
         echo "Вывод команды был: $KEYS_OUTPUT"
         exit 1
     fi
@@ -39,6 +37,7 @@ if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
+
 
 if [ -z "$SHORT_ID" ]; then
     SHORT_ID=$(openssl rand -hex 4)
