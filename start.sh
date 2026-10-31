@@ -22,20 +22,20 @@ echo "1. Проверка и генерация криптографически
 if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
     echo "Генерирую официальную пару ключей Reality..."
     
-    # Сохраняем вывод во временный файл, чтобы избежать искажения символов в Bash
     /usr/local/bin/xray x25519 > /tmp/xray_keys.txt
     
-    # Python читает файл напрямую с диска по байтам и чисто забирает ключи
+    # Python жестко проверяет начало строки, отсекая любые предупреждения про пароли
     KEYS=$(python3 -c "
 import os
 if os.path.exists('/tmp/xray_keys.txt'):
     with open('/tmp/xray_keys.txt', 'r', encoding='utf-8') as f:
         priv, pub = '', ''
         for line in f:
-            if 'Private' in line:
-                priv = line.split('Key:')[-1].split('key:')[-1].strip()
-            if 'Public' in line:
-                pub = line.split('Key:')[-1].split('key:')[-1].strip()
+            clean = line.strip().replace(' ', '')
+            if clean.startswith('PrivateKey:'):
+                priv = clean.split('PrivateKey:')[-1]
+            elif clean.startswith('PublicKey:'):
+                pub = clean.split('PublicKey:')[-1]
         print(f'{priv} {pub}')
 ")
     rm -f /tmp/xray_keys.txt
@@ -43,10 +43,15 @@ if os.path.exists('/tmp/xray_keys.txt'):
     PRIVATE_KEY=$(echo "$KEYS" | awk '{print $1}')
     PUBLIC_KEY=$(echo "$KEYS" | awk '{print $2}')
     
-    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-        echo "Критическая ошибка: Не удалось распарсить ключи с диска!"
+    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ] || [ "$PUBLIC_KEY" = "Password" ]; then
+        echo "Критическая ошибка: Парсер выдал некорректный ключ!"
         exit 1
     fi
+    
+    echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
+    echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
+fi
+
     
     echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
