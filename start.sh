@@ -52,12 +52,6 @@ if os.path.exists('/tmp/xray_keys.txt'):
     echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
 fi
 
-
-    
-    echo "PRIVATE_KEY=${PRIVATE_KEY}" >> .env
-    echo "PUBLIC_KEY=${PUBLIC_KEY}" >> .env
-fi
-
 if [ -z "$SHORT_ID" ]; then
     SHORT_ID=$(openssl rand -hex 4)
     echo "SHORT_ID=${SHORT_ID}" >> .env
