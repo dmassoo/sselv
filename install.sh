@@ -7,37 +7,36 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Получаем имя вашего SSH-пользователя (например, vpnadmin)
+# Получаем имя вашего SSH-пользователя (который вызвал sudo)
 REAL_USER=${SUDO_USER:-$(whoami)}
 
-# Принудительно делаем исполняемым соседний файл на будущее
+# Принудительно делаем исполняемым соседний файл запуска на будущее
 chmod +x ./start.sh
 
 echo "1. Установка системных утилит..."
 apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip
 
-echo "2. Скачивание официального ядра Xray-core из GitHub..."
+echo "2. Скачивание официального ядра Xray-core через прокси GitHub..."
 rm -f /tmp/xray.zip
 
-# Маскируемся под реальный браузер Chrome на Windows, чтобы обойти защиту GitHub
-curl -f -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
--o /tmp/xray.zip "https://github.com"
+# Запрос идет через надежный прокси-акселератор, ТСПУ его не блокирует
+curl -f -L -o /tmp/xray.zip "https://gh-proxy.com"
 
 # Создаем системные директории
 mkdir -p /usr/local/bin /usr/local/etc/xray
 
-# Распаковываем скачанный архив
+# Распаковываем чистый архив
 unzip -o /tmp/xray.zip -d /usr/local/bin/
 rm -f /tmp/xray.zip
 
 # Выставляем права на исполнение бинарника
 chmod +x /usr/local/bin/xray
 
-# Отдаем права на папку с конфигурацией вашему пользователю
+# Отдаем права на папку с конфигами вашему пользователю
 chown -R $REAL_USER:$REAL_USER /usr/local/etc/xray
 
 echo "3. Настройка сетевых привилегий для порта 443..."
-# Разрешаем бинарнику слушать порт 443 под обычным пользователем
+# Позволяет бинарнику слушать защищенный порт 443 без прав root
 setcap 'cap_net_bind_service=ep' /usr/local/bin/xray
 
 echo "4. Регистрация службы Xray в systemd под пользователем $REAL_USER..."
