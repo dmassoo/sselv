@@ -16,24 +16,34 @@ chmod +x ./start.sh
 echo "1. Установка системных утилит..."
 apt-get update && apt-get install -y gettext-base curl qrencode openssl git unzip
 
-echo "2. Скачивание официального ядра Xray-core через прокси GitHub..."
+echo "2. Скачивание официального ядра Xray-core..."
 rm -f /tmp/xray.zip
 
-# Запрос идет через надежный прокси-акселератор, ТСПУ его не блокирует
-curl -f -L -o /tmp/xray.zip "https://gh-proxy.com"
+# Прямая ссылка на релиз (без использования "latest/download", который генерирует сложные редиректы)
+# Версия v25.12.8 — проверенная и стабильная
+URL="https://github.com"
 
-# Создаем системные директории
+echo "Скачиваю архив Xray-core..."
+if curl -f -L -sS -o /tmp/xray.zip "$URL" && unzip -t /tmp/xray.zip &>/dev/null; then
+    echo "Успешно скачано напрямую."
+else
+    echo "Основной канал перегружен. Скачиваю через прямой CDN-акселератор..."
+    rm -f /tmp/xray.zip
+    # Альтернативный прямой линк, который пробивает любые лимиты дата-центров
+    curl -f -L -o /tmp/xray.zip "https://ghproxy.com"
+fi
+
+# Создаем директории
 mkdir -p /usr/local/bin /usr/local/etc/xray
 
 # Распаковываем чистый архив
 unzip -o /tmp/xray.zip -d /usr/local/bin/
 rm -f /tmp/xray.zip
 
-# Выставляем права на исполнение бинарника
+# Права на исполнение бинарника
 chmod +x /usr/local/bin/xray
-
-# Отдаем права на папку с конфигами вашему пользователю
 chown -R $REAL_USER:$REAL_USER /usr/local/etc/xray
+
 
 echo "3. Настройка сетевых привилегий для порта 443..."
 # Позволяет бинарнику слушать защищенный порт 443 без прав root
