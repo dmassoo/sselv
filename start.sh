@@ -77,11 +77,28 @@ done
 export SERVER_IP DEST_DOMAIN PRIVATE_KEY PUBLIC_KEY SHORT_ID GRPC_SERVICE_NAME
 export CLIENT_UUID_1 CLIENT_UUID_2 CLIENT_UUID_3 CLIENT_UUID_4 CLIENT_UUID_5
 
-echo "2. Сборка конфигурации..."
-envsubst < config.template.json > /usr/local/etc/xray/config.json
+echo "2. Сборка конфигурации (Прямая замена через sed)..."
 
-# ЗДЕСЬ ВЫСТАВЛЯЮТСЯ ЧИСТЫЕ ПРАВА ПО ОФИЦИАЛЬНОЙ СПЕЦИФИКАЦИИ XTLS
-# Владелец root (чтобы никто не подменил), группа xray может читать.
+# Читаем шаблон во временный файл
+cp config.template.json /tmp/config.tmp.json
+
+# Мягко и гарантированно заменяем каждую переменную на её реальное значение
+sed -i "s|\${SERVER_IP}|${SERVER_IP}|g" /tmp/config.tmp.json
+sed -i "s|\${DEST_DOMAIN}|${DEST_DOMAIN}|g" /tmp/config.tmp.json
+sed -i "s|\${PRIVATE_KEY}|${PRIVATE_KEY}|g" /tmp/config.tmp.json
+sed -i "s|\${PUBLIC_KEY}|${PUBLIC_KEY}|g" /tmp/config.tmp.json
+sed -i "s|\${SHORT_ID}|${SHORT_ID}|g" /tmp/config.tmp.json
+sed -i "s|\${GRPC_SERVICE_NAME}|${GRPC_SERVICE_NAME}|g" /tmp/config.tmp.json
+sed -i "s|\${CLIENT_UUID_1}|${CLIENT_UUID_1}|g" /tmp/config.tmp.json
+sed -i "s|\${CLIENT_UUID_2}|${CLIENT_UUID_2}|g" /tmp/config.tmp.json
+sed -i "s|\${CLIENT_UUID_3}|${CLIENT_UUID_3}|g" /tmp/config.tmp.json
+sed -i "s|\${CLIENT_UUID_4}|${CLIENT_UUID_4}|g" /tmp/config.tmp.json
+sed -i "s|\${CLIENT_UUID_5}|${CLIENT_UUID_5}|g" /tmp/config.tmp.json
+
+# Переносим готовый файл в системную папку
+mv /tmp/config.tmp.json /usr/local/etc/xray/config.json
+
+# Выставляем права по стандарту безопасности XTLS
 chown root:xray /usr/local/etc/xray/config.json
 chmod 0640 /usr/local/etc/xray/config.json
 
