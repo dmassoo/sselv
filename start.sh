@@ -79,9 +79,12 @@ export CLIENT_UUID_1 CLIENT_UUID_2 CLIENT_UUID_3 CLIENT_UUID_4 CLIENT_UUID_5
 echo "2. Сборка конфигурации..."
 envsubst < config.template.json > /usr/local/etc/xray/config.json
 
-# Выставляем права строго по официальной таблице XTLS
-chown root:xray /usr/local/etc/xray/config.json
-chmod 0640 /usr/local/etc/xray/config.json
+# Получаем имя вашего SSH-пользователя
+REAL_USER=${SUDO_USER:-$(whoami)}
+
+# Отдаем полные права на файл конфигурации вашему пользователю, под которым работает служба
+chown $REAL_USER:$REAL_USER /usr/local/etc/xray/config.json
+chmod 0644 /usr/local/etc/xray/config.json
 
 echo "3. Перезапуск официальной службы xray..."
 systemctl restart xray
